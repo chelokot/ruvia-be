@@ -6,9 +6,7 @@ export async function authMiddleware(
   context: AuthorizedAppContext,
   next: Next,
 ) {
-  const body = await context.req.json().catch(() => null);
-  const idToken = body && typeof body.token === "string" ? body.token : "";
-
+  const idToken = context.req.header("authorization") || "";
   if (!idToken) {
     return context.json({ ok: false }, 400);
   }

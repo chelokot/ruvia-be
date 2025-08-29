@@ -3,6 +3,7 @@ import type { Auth } from "firebase-admin/auth";
 import { type Context, Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
+import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
 import { type Database, initDatabaseClient } from "./database.js";
 import { initFirebase } from "./firebase.js";
@@ -32,6 +33,7 @@ export function initApp() {
     .use("*", authMiddleware);
 
   app.route("/session", sessionRoute);
+  app.route("/generate", generateRoute);
 
   return () => {
     serve({ fetch: app.fetch, port: 3000 }, (info) => {

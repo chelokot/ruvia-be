@@ -32,3 +32,18 @@ export async function findUserAndUpdate({
 
   return user;
 }
+
+type UseCreditsArgs = {
+  db: Database;
+  firebaseId: string;
+  amount: number;
+};
+
+export async function useCredits({ db, firebaseId, amount }: UseCreditsArgs) {
+  const result = await db.user.updateOne(
+    { firebaseId },
+    { $inc: { credits: -amount } },
+  );
+
+  return result.modifiedCount > 0;
+}
