@@ -4,20 +4,28 @@ import { type Context, Hono } from "hono";
 import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { sessionRoute } from "../routes/session.js";
+import { type Database, initDatabaseClient } from "./database.js";
 import { initFirebase } from "./firebase.js";
+import type { User } from "./user.js";
 
-export type AppEnv = {
-  Variables: {
+export type AppEnv<C = Record<string, unknown>> = {
+  Variables: C & {
     auth: Auth;
+    db: Database;
   };
 };
+export type AuthorizedAppEnv = AppEnv<{
+  user: User;
+}>;
 
 export type AppContext = Context<AppEnv>;
+export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
 
 export function initApp() {
   const auth = initFirebase();
+  const db = initDatabaseClient();
 
-  const variables: AppEnv["Variables"] = { auth };
+  const variables: AppEnv["Variables"] = { auth, db };
 
   const app = new Hono<AppEnv>()
     .use("*", createInitMiddleware(variables))
