@@ -32,7 +32,6 @@ export async function initApp() {
   const variables: AppEnv["Variables"] = { auth, db };
 
   const app = new Hono<AppEnv>()
-    // CORS first so preflight (OPTIONS) succeeds before auth
     .use("*", cors())
     .use("*", createInitMiddleware(variables))
     .use("*", authMiddleware);
