@@ -1,6 +1,7 @@
 import { serve } from "@hono/node-server";
 import type { Auth } from "firebase-admin/auth";
 import { type Context, Hono } from "hono";
+import { cors } from "hono/cors";
 import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
@@ -29,6 +30,8 @@ export function initApp() {
   const variables: AppEnv["Variables"] = { auth, db };
 
   const app = new Hono<AppEnv>()
+    // CORS first so preflight (OPTIONS) succeeds before auth
+    .use("*", cors())
     .use("*", createInitMiddleware(variables))
     .use("*", authMiddleware);
 
