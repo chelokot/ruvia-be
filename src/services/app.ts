@@ -6,19 +6,16 @@ import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
-import { type Database, initDatabaseClient } from "./database.js";
-import { initFirebase, injectFirebaseCredentials } from "./firebase.js";
-import type { User } from "./user.js";
+import { initFirebase } from "./firebase.js";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 export type AppEnv<C = Record<string, unknown>> = {
   Variables: C & {
     auth: Auth;
-    db: Database;
+    firestore: Firestore;
   };
 };
-export type AuthorizedAppEnv = AppEnv<{
-  user: User;
-}>;
+export type AuthorizedAppEnv = AppEnv<{ user: { firebaseId: string; name: string; balance: number; isNew: boolean; generationCount: number } }>;
 
 export type AppContext = Context<AppEnv>;
 export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
@@ -27,9 +24,9 @@ export async function initApp() {
   await injectFirebaseCredentials();
 
   const auth = initFirebase();
-  const db = initDatabaseClient();
+  const firestore = getFirestore();
 
-  const variables: AppEnv["Variables"] = { auth, db };
+  const variables: AppEnv["Variables"] = { auth, firestore };
 
   const app = new Hono<AppEnv>()
     .use("*", cors())

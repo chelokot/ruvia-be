@@ -14,7 +14,7 @@ export async function authMiddleware(
   try {
     const decodedToken = await context.var.auth.verifyIdToken(idToken);
     const user = await findUserAndUpdate({
-      db: context.var.db,
+      firestore: context.var.firestore,
       firebaseId: decodedToken.uid,
       name: decodedToken.name,
     });
