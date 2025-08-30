@@ -2,21 +2,17 @@ import { fal } from "@fal-ai/client";
 import { Hono } from "hono";
 import type { AuthorizedAppEnv } from "../services/app.js";
 import { generateImage } from "../services/falai.js";
-import { useCredits } from "../services/user.js";
+import { markGenerationCompleted, useBalance } from "../services/user.js";
 
 const PRICE = 1;
 
 export const generateRoute = new Hono<AuthorizedAppEnv>().post(
   "/",
   async (context) => {
-    if (context.var.user.credits < PRICE) {
+    if (context.var.user.balance < PRICE) {
       return context.json({ ok: false, error: "not enough credits" }, 400);
     }
-    const result = await useCredits({
-      db: context.var.db,
-      firebaseId: context.var.user.firebaseId,
-      amount: PRICE,
-    });
+    const result = await useBalance({ firestore: context.var.firestore, firebaseId: context.var.user.firebaseId, amount: PRICE });
     if (!result) {
       return context.json({ ok: false, error: "failed to use credits" }, 500);
     }
@@ -54,6 +50,9 @@ export const generateRoute = new Hono<AuthorizedAppEnv>().post(
 
     try {
       const { ok, data, error } = await generateImage(prompt, images);
+      if (ok) {
+        await markGenerationCompleted({ firestore: context.var.firestore, firebaseId: context.var.user.firebaseId });
+      }
       return context.json({ ok, data, error });
     } catch (error) {
       console.error(error);
