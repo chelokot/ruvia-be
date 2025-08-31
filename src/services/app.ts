@@ -5,6 +5,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
+import { authRoutes } from "../routes/auth.js";
 import { type Database, initDatabaseClient } from "./database.js";
 import { initFirebase } from "./firebase.js";
 import type { User } from "./user.js";
@@ -22,22 +23,28 @@ export type AuthorizedAppEnv = AppEnv<{
 export type AppContext = Context<AppEnv>;
 export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
 
-export function initApp() {
+export function buildApp() {
   const auth = initFirebase();
   const db = initDatabaseClient();
 
   const variables: AppEnv["Variables"] = { auth, db };
 
   const app = new Hono<AppEnv>()
-    .use("*", createInitMiddleware(variables))
-    .use("*", authMiddleware);
+    .use("*", createInitMiddleware(variables));
 
-  app.route("/session", sessionRoute);
-  app.route("/generate", generateRoute);
+  // Public auth routes
+  app.route("/", authRoutes);
 
-  return () => {
-    serve({ fetch: app.fetch, port: 3000 }, (info) => {
-      console.log(`Server is running on http://localhost:${info.port}`);
-    });
-  };
+  // Protected routes
+  app.route("/session", new Hono<AppEnv>().use("*", authMiddleware).route("/", sessionRoute));
+  app.route("/generate", new Hono<AppEnv>().use("*", authMiddleware).route("/", generateRoute));
+
+  return app;
+}
+
+export function startServer() {
+  const app = buildApp();
+  serve({ fetch: app.fetch, port: 3000 }, (info) => {
+    console.log(`Server is running on http://localhost:${info.port}`);
+  });
 }
