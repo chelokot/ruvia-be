@@ -7,7 +7,7 @@ import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
 import { purchaseRoute } from "../routes/purchase.js";
-import { initFirebase } from "./firebase.js";
+import { initFirebase, injectFirebaseCredentials } from "./firebase.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
 export type AppEnv<C = Record<string, unknown>> = {
