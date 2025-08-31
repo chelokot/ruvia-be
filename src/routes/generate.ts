@@ -2,7 +2,7 @@ import { fal } from "@fal-ai/client";
 import { Hono } from "hono";
 import type { AuthorizedAppEnv } from "../services/app.js";
 import { generateImage } from "../services/falai.js";
-import { useCredits } from "../services/user.js";
+import { incrementGenerationCount, useCredits } from "../services/user.js";
 
 const PRICE = 1;
 
@@ -54,6 +54,12 @@ export const generateRoute = new Hono<AuthorizedAppEnv>().post(
 
     try {
       const { ok, data, error } = await generateImage(prompt, images);
+      if (ok) {
+        await incrementGenerationCount({
+          db: context.var.db,
+          firebaseId: context.var.user.firebaseId,
+        });
+      }
       return context.json({ ok, data, error });
     } catch (error) {
       console.error(error);
