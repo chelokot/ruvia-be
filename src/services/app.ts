@@ -23,9 +23,7 @@ export type AuthorizedAppEnv = AppEnv<{
 export type AppContext = Context<AppEnv>;
 export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
 
-export async function initApp() {
-  await injectFirebaseCredentials();
-
+export function buildApp() {
   const auth = initFirebase();
   const db = initDatabaseClient();
 
@@ -38,6 +36,14 @@ export async function initApp() {
   app.route("/session", sessionRoute);
   app.route("/generate", generateRoute);
   app.route("/purchase", purchaseRoute);
+
+  return app;
+}
+
+export async function initApp() {
+  await injectFirebaseCredentials();
+
+  const app = buildApp();
 
   return () => {
     serve({ fetch: app.fetch, port: 3000 }, (info) => {
