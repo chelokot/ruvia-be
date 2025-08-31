@@ -1,22 +1,24 @@
 import { serve } from "@hono/node-server";
 import type { Auth } from "firebase-admin/auth";
 import { type Context, Hono } from "hono";
-import { cors } from "hono/cors";
 import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
-import { purchaseRoute } from "../routes/purchase.js";
+import { type Database, initDatabaseClient } from "./database.js";
 import { initFirebase, injectFirebaseCredentials } from "./firebase.js";
-import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import type { User } from "./user.js";
+import { purchaseRoute } from "../routes/purchase.js";
 
 export type AppEnv<C = Record<string, unknown>> = {
   Variables: C & {
     auth: Auth;
-    firestore: Firestore;
+    db: Database;
   };
 };
-export type AuthorizedAppEnv = AppEnv<{ user: { firebaseId: string; name: string; balance: number; isNew: boolean; generationCount: number } }>;
+export type AuthorizedAppEnv = AppEnv<{
+  user: User;
+}>;
 
 export type AppContext = Context<AppEnv>;
 export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
@@ -25,12 +27,11 @@ export async function initApp() {
   await injectFirebaseCredentials();
 
   const auth = initFirebase();
-  const firestore = getFirestore();
+  const db = initDatabaseClient();
 
-  const variables: AppEnv["Variables"] = { auth, firestore };
+  const variables: AppEnv["Variables"] = { auth, db };
 
   const app = new Hono<AppEnv>()
-    .use("*", cors())
     .use("*", createInitMiddleware(variables))
     .use("*", authMiddleware);
 

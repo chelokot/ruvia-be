@@ -23,14 +23,15 @@ export const purchaseRoute = new Hono<AuthorizedAppEnv>().post(
     const credits = SKU_TO_CREDITS[sku];
 
     // Idempotency: check purchases collection by purchaseToken
-    const purchaseRef = c.var.firestore.collection("purchases").doc(token);
+    const firestore = c.var.db.user.firestore;
+    const purchaseRef = firestore.collection("purchases").doc(token);
     const existing = await purchaseRef.get();
     if (existing.exists) {
       // Already processed
-      const userRef = c.var.firestore.collection("users").doc(c.var.user.firebaseId);
+      const userRef = c.var.db.user.doc(c.var.user.firebaseId);
       const snap = await userRef.get();
-      const balance = (snap.data() as any)?.balance ?? 0;
-      return c.json({ ok: true, credits: balance, alreadyProcessed: true });
+      const credits = (snap.data() as any)?.credits ?? 0;
+      return c.json({ ok: true, credits, alreadyProcessed: true });
     }
 
     // Verify with Google Play
@@ -44,12 +45,12 @@ export const purchaseRoute = new Hono<AuthorizedAppEnv>().post(
     }
 
     // Credit user and record purchase atomically
-    const userRef = c.var.firestore.collection("users").doc(c.var.user.firebaseId);
-    await c.var.firestore.runTransaction(async (tx) => {
+    const userRef = c.var.db.user.doc(c.var.user.firebaseId);
+    await firestore.runTransaction(async (tx) => {
       const u = await tx.get(userRef);
       if (!u.exists) throw new Error("user not found");
-      const current = typeof (u.data() as any)?.balance === "number" ? (u.data() as any).balance : 0;
-      tx.update(userRef, { balance: current + credits });
+      const currentCredits = typeof (u.data() as any)?.credits === "number" ? (u.data() as any).credits : 0;
+      tx.update(userRef, { credits: currentCredits + credits });
       tx.set(purchaseRef, {
         uid: c.var.user.firebaseId,
         sku,
@@ -67,8 +68,7 @@ export const purchaseRoute = new Hono<AuthorizedAppEnv>().post(
     }
 
     const newSnap = await userRef.get();
-    const balance = (newSnap.data() as any)?.balance ?? 0;
-    return c.json({ ok: true, credits: balance });
+    const newCredits = (newSnap.data() as any)?.credits ?? 0;
+    return c.json({ ok: true, credits: newCredits });
   },
 );
-

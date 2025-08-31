@@ -7,24 +7,24 @@ import { getAuth } from "firebase-admin/auth";
 export function initFirebase(): firebase.auth.Auth {
   const projectId = process.env.FIREBASE_PROJECT_ID;
   const clientEmail = process.env.FIREBASE_CLIENT_EMAIL;
-  const privateKeyRaw = process.env.FIREBASE_PRIVATE_KEY;
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY;
 
-  if (!projectId) {
-    throw new Error("Firebase admin env is not set: missing FIREBASE_PROJECT_ID");
+  const emulatorHost = process.env.FIREBASE_AUTH_EMULATOR_HOST;
+
+  if (!projectId || (!emulatorHost && (!clientEmail || !privateKey))) {
+    throw new Error("Firebase admin env is not set");
   }
 
-  // Replace literal \n with actual newlines for dotenv-loaded keys
-  const privateKey = privateKeyRaw?.replace(/\\n/g, "\n");
-  const haveServiceAccount = !!clientEmail && !!privateKey;
-
-  const app = initializeApp(
-    haveServiceAccount
-      ? {
-          credential: cert({ projectId, clientEmail: clientEmail!, privateKey: privateKey! }),
+  const app = initializeApp({
+    credential: emulatorHost
+      ? cert({
           projectId,
-        }
-      : { projectId }
-  );
+          clientEmail,
+          privateKey,
+        })
+      : undefined,
+    projectId,
+  });
 
   return getAuth(app);
 }

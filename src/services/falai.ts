@@ -4,8 +4,6 @@ export function initFalAi() {
   if (!process.env.FAL_KEY || !process.env.FAL_MODEL) {
     throw new Error("Fal AI env is not set");
   }
-  // Configure client with API key
-  fal.config({ credentials: process.env.FAL_KEY });
 }
 
 type GenerateImageResult = {

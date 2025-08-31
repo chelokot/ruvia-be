@@ -1,62 +1,79 @@
-import { FieldValue, type Firestore } from "firebase-admin/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import type { Database } from "./database.js";
 
 export type User = {
   firebaseId: string;
   name: string;
-  balance: number;
-  isNew: boolean;
+  credits: number;
   generationCount: number;
-  createdAt?: unknown;
 };
 
 type FindUserAndUpdateArgs = {
-  firestore: Firestore;
+  db: Database;
   firebaseId: string;
   name: string;
 };
 
-export async function findUserAndUpdate({ firestore, firebaseId, name }: FindUserAndUpdateArgs): Promise<User> {
-  const ref = firestore.collection("users").doc(firebaseId);
-  const snap = await ref.get();
-  if (!snap.exists) {
-    const user: User = { firebaseId, name, balance: 1, isNew: true, generationCount: 0, createdAt: FieldValue.serverTimestamp() };
-    await ref.set(user);
-    return { ...user, createdAt: undefined };
+export async function findUserAndUpdate({
+  db,
+  firebaseId,
+  name,
+}: FindUserAndUpdateArgs) {
+  const user = await db.user.doc(firebaseId).get();
+  if (!user.exists) {
+    const newUser: User = { firebaseId, name, credits: 1, generationCount: 0 };
+    await db.user.doc(firebaseId).set(newUser);
+    return newUser;
   }
-  const data = snap.data() as Partial<User> | undefined;
-  const current: User = {
-    firebaseId,
-    name: data?.name ?? name,
-    balance: typeof data?.balance === "number" ? data.balance : 0,
-    isNew: typeof data?.isNew === "boolean" ? data.isNew : false,
-    generationCount: typeof data?.generationCount === "number" ? data.generationCount : 0,
-    createdAt: data?.createdAt,
-  };
-  if (current.name !== name) {
-    await ref.update({ name });
-    current.name = name;
-  }
-  return current;
+  await db.user.doc(firebaseId).update({ name });
+  const current = user.data() as User;
+  return { ...current, name } satisfies User;
 }
 
-type UseBalanceArgs = { firestore: Firestore; firebaseId: string; amount: number };
+type UseCreditsArgs = {
+  db: Database;
+  firebaseId: string;
+  amount: number;
+};
 
-export async function useBalance({ firestore, firebaseId, amount }: UseBalanceArgs): Promise<boolean> {
-  const ref = firestore.collection("users").doc(firebaseId);
-  return await firestore.runTransaction(async transaction => {
-    const snap = await transaction.get(ref);
-    if (!snap.exists) return false;
-    const data = snap.data() as Partial<User> | undefined;
-    const current = typeof data?.balance === "number" ? data.balance : 0;
-    if (current < amount) return false;
-    transaction.update(ref, { balance: current - amount });
-    return true;
+export async function useCredits({ db, firebaseId, amount }: UseCreditsArgs) {
+  if (amount <= 0) {
+    return false;
+  }
+
+  const documentReference = db.user.doc(firebaseId);
+  const success = await db.user.firestore.runTransaction(
+    async (transaction) => {
+      const snapshot = await transaction.get(documentReference);
+      if (!snapshot.exists) {
+        return false;
+      }
+      const current = snapshot.data() as User;
+      if (current.credits < amount) {
+        return false;
+      }
+      transaction.update(documentReference, {
+        credits: current.credits - amount,
+      });
+      return true;
+    },
+  );
+
+  return success;
+}
+
+type IncrementGenerationCountArgs = {
+  db: Database;
+  firebaseId: string;
+};
+
+export async function incrementGenerationCount({
+  db,
+  firebaseId,
+}: IncrementGenerationCountArgs): Promise<void> {
+  const ref = db.user.doc(firebaseId);
+  await ref.update({
+    isNew: false,
+    generationCount: FieldValue.increment(1),
   });
-}
-
-type MarkGenerationArgs = { firestore: Firestore; firebaseId: string };
-
-export async function markGenerationCompleted({ firestore, firebaseId }: MarkGenerationArgs): Promise<void> {
-  const ref = firestore.collection("users").doc(firebaseId);
-  await ref.update({ isNew: false, generationCount: FieldValue.increment(1) });
 }

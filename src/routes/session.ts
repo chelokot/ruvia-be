@@ -7,7 +7,7 @@ export const sessionRoute = new Hono<AuthorizedAppEnv>().post(
     return context.json({
       ok: true,
       name: context.var.user.name,
-      credits: context.var.user.balance,
+      credits: context.var.user.credits,
     });
   },
 );
