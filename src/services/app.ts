@@ -6,6 +6,7 @@ import { authMiddleware } from "../middleware/auth.js";
 import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
+import { purchaseRoute } from "../routes/purchase.js";
 import { initFirebase } from "./firebase.js";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 
@@ -35,6 +36,7 @@ export async function initApp() {
 
   app.route("/session", sessionRoute);
   app.route("/generate", generateRoute);
+  app.route("/purchase", purchaseRoute);
 
   return () => {
     serve({ fetch: app.fetch, port: 3000 }, (info) => {
