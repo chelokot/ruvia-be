@@ -1,22 +1,28 @@
 import { Hono } from 'hono';
 import type { AppEnv } from '../services/app.js';
 
-function getEnv(name: string, fallback?: string) {
-  const v = process.env[name] ?? fallback;
+const AUTH_ROOT = 'https://accounts.google.com/o/oauth2/v2/auth';
+const TOKEN_URL = 'https://oauth2.googleapis.com/token';
+
+function env(name: string, fallback?: string): string {
+  const v = process.env[name] || fallback;
   if (!v) throw new Error(`Missing env: ${name}`);
   return v;
 }
 
-const GOOGLE_AUTH_ROOT = 'https://accounts.google.com/o/oauth2/v2/auth';
-const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+function b64urlDecode(input: string): string {
+  const pad = input.length % 4 === 2 ? '==' : input.length % 4 === 3 ? '=' : '';
+  return Buffer.from(input.replace(/-/g, '+').replace(/_/g, '/') + pad, 'base64').toString('utf8');
+}
+
+type IdPayload = { sub?: string; email?: string; name?: string };
 
 export const authRoutes = new Hono<AppEnv>()
   .get('/auth/google', (c) => {
-    const clientId = getEnv('GOOGLE_CLIENT_ID');
-    const redirectUri = new URL('/auth/google/callback', getEnv('PUBLIC_BASE_URL', 'https://api.ruvia.art')).toString();
+    const clientId = env('GOOGLE_CLIENT_ID');
+    const redirectUri = new URL('/auth/google/callback', env('PUBLIC_BASE_URL', 'https://api.ruvia.art')).toString();
     const state = c.req.query('redirect') || c.req.header('referer') || 'https://www.ruvia.art';
-
-    const params = new URLSearchParams({
+    const qs = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
@@ -25,48 +31,34 @@ export const authRoutes = new Hono<AppEnv>()
       include_granted_scopes: 'true',
       state,
     });
-    return c.redirect(`${GOOGLE_AUTH_ROOT}?${params.toString()}`);
+    return c.redirect(`${AUTH_ROOT}?${qs}`);
   })
   .get('/auth/google/callback', async (c) => {
     const code = c.req.query('code');
     const state = c.req.query('state') || 'https://www.ruvia.art';
-    if (!code) return c.text('Missing code', 400);
-
-    const clientId = getEnv('GOOGLE_CLIENT_ID');
-    const clientSecret = getEnv('GOOGLE_CLIENT_SECRET');
-    const redirectUri = new URL('/auth/google/callback', getEnv('PUBLIC_BASE_URL', 'https://api.ruvia.art')).toString();
-
-    const body = new URLSearchParams({
+    if (!code) return c.newResponse('Missing code', 400);
+    const clientId = env('GOOGLE_CLIENT_ID');
+    const clientSecret = env('GOOGLE_CLIENT_SECRET');
+    const redirectUri = new URL('/auth/google/callback', env('PUBLIC_BASE_URL', 'https://api.ruvia.art')).toString();
+    const form = new URLSearchParams({
       code,
       client_id: clientId,
       client_secret: clientSecret,
       redirect_uri: redirectUri,
       grant_type: 'authorization_code',
     });
-    const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
-    if (!tokenRes.ok) {
-      const err = await tokenRes.text();
-      return c.text(`Token exchange failed: ${err}`, 500);
-    }
-    const tokenJson: any = await tokenRes.json();
-    const idToken = tokenJson.id_token as string | undefined;
-    if (!idToken) return c.text('No id_token from Google', 500);
-
-    // Decode ID token (payload is base64url)
-    const payload = JSON.parse(Buffer.from(idToken.split('.')[1], 'base64').toString('utf8')) as any;
-    const uid = (payload && (payload.sub || payload.email)) as string;
-    const name = (payload && payload.name) as string | undefined;
-    const email = (payload && payload.email) as string | undefined;
-    if (!uid) return c.text('Invalid Google token', 500);
-
-    const customToken = await c.var.auth.createCustomToken(uid, { name, email });
-
-    const redirect = new URL(state as string);
-    redirect.searchParams.set('customToken', customToken);
-    return c.redirect(redirect.toString());
+    const r = await fetch(TOKEN_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString() });
+    if (!r.ok) return c.newResponse('Token exchange failed', 500);
+    const j = (await r.json()) as { id_token?: string };
+    if (!j.id_token) return c.newResponse('No id_token', 500);
+    const payload: IdPayload = JSON.parse(b64urlDecode(j.id_token.split('.')[1] || '')) as IdPayload;
+    const uid = payload.sub || payload.email || '';
+    if (!uid) return c.newResponse('Invalid token', 500);
+    const claims: Record<string, string> = {};
+    if (payload.name) claims.name = payload.name;
+    if (payload.email) claims.email = payload.email;
+    const customToken = await c.var.auth.createCustomToken(uid, claims);
+    const url = new URL(String(state));
+    url.searchParams.set('customToken', customToken);
+    return c.redirect(url.toString());
   });
-
