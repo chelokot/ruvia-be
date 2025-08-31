@@ -6,7 +6,7 @@ import { createInitMiddleware } from "../middleware/init.js";
 import { generateRoute } from "../routes/generate.js";
 import { sessionRoute } from "../routes/session.js";
 import { type Database, initDatabaseClient } from "./database.js";
-import { initFirebase } from "./firebase.js";
+import { initFirebase, injectFirebaseCredentials } from "./firebase.js";
 import type { User } from "./user.js";
 
 export type AppEnv<C = Record<string, unknown>> = {
@@ -22,7 +22,9 @@ export type AuthorizedAppEnv = AppEnv<{
 export type AppContext = Context<AppEnv>;
 export type AuthorizedAppContext = Context<AuthorizedAppEnv>;
 
-export function initApp() {
+export async function initApp() {
+  await injectFirebaseCredentials();
+
   const auth = initFirebase();
   const db = initDatabaseClient();
 

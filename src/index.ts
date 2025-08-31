@@ -1,4 +1,6 @@
 import "dotenv/config";
 import { initApp } from "./services/app.js";
 
-initApp()();
+const runner = await initApp();
+
+runner();
